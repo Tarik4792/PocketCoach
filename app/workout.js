@@ -2,8 +2,6 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-
 export default function WorkoutScreen() {
   const { minutes, fitnessLevel, equipment, goal } = useLocalSearchParams();
   const router = useRouter();
@@ -15,7 +13,11 @@ export default function WorkoutScreen() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/api/generate-workout`, {
+      const previousWorkout = workout
+        ? workout.exercises.map(e => e.name).join(', ')
+        : null;
+
+      const response = await fetch('/api/generate-workout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -23,6 +25,7 @@ export default function WorkoutScreen() {
           fitnessLevel: fitnessLevel || 'Intermediate',
           equipment: equipment || 'None',
           goal: goal || 'Stay Active',
+          previousWorkout,
         }),
       });
       const data = await response.json();
@@ -38,6 +41,7 @@ export default function WorkoutScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Your {minutes || 10}-Min Workout</Text>
+      {workout?.theme && <Text style={styles.theme}>🎯 {workout.theme}</Text>}
       <Text style={styles.sub}>AI-generated · No equipment needed</Text>
 
       {!workout && !loading && (
@@ -96,7 +100,8 @@ export default function WorkoutScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   content: { padding: 24, paddingTop: 40 },
-  heading: { fontSize: 26, fontWeight: '700', color: '#fff', marginBottom: 6 },
+  heading: { fontSize: 26, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  theme: { fontSize: 13, color: '#00C896', marginBottom: 4, textTransform: 'capitalize' },
   sub: { fontSize: 14, color: '#666', marginBottom: 32 },
   generateBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center' },
   generateText: { color: '#000', fontWeight: '700', fontSize: 16 },
