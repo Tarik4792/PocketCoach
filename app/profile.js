@@ -1,40 +1,64 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { getProfile, updateProfile } from '../lib/userProfile';
 
 export default function ProfileScreen() {
+  const profile = getProfile();
+  const [fitnessLevel, setFitnessLevel] = useState(profile.fitnessLevel);
+  const [equipment, setEquipment] = useState(profile.equipment);
+  const [goal, setGoal] = useState(profile.goal);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    updateProfile({ fitnessLevel, equipment, goal });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const Option = ({ label, value, selected, onPress }) => (
+    <TouchableOpacity
+      style={[styles.optionBtn, selected && styles.optionActive]}
+      onPress={onPress}
+    >
+      <Text style={[styles.optionText, selected && styles.optionTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Profile</Text>
       <View style={styles.avatarRow}>
         <View style={styles.avatar}><Text style={styles.avatarText}>T</Text></View>
         <View>
-          <Text style={styles.name}>Tarik</Text>
+          <Text style={styles.name}>{profile.name}</Text>
           <Text style={styles.sub}>Busy Professional 💼</Text>
         </View>
       </View>
+
       <Text style={styles.sectionLabel}>Fitness Level</Text>
       <View style={styles.optionRow}>
         {['Beginner', 'Intermediate', 'Advanced'].map((level) => (
-          <TouchableOpacity key={level} style={[styles.optionBtn, level === 'Intermediate' && styles.optionActive]}>
-            <Text style={[styles.optionText, level === 'Intermediate' && styles.optionTextActive]}>{level}</Text>
-          </TouchableOpacity>
+          <Option key={level} label={level} value={level} selected={fitnessLevel === level} onPress={() => setFitnessLevel(level)} />
         ))}
       </View>
+
       <Text style={styles.sectionLabel}>Equipment</Text>
       <View style={styles.optionRow}>
         {['None', 'Dumbbells', 'Resistance Bands', 'Full Gym'].map((eq) => (
-          <TouchableOpacity key={eq} style={[styles.optionBtn, eq === 'None' && styles.optionActive]}>
-            <Text style={[styles.optionText, eq === 'None' && styles.optionTextActive]}>{eq}</Text>
-          </TouchableOpacity>
+          <Option key={eq} label={eq} value={eq} selected={equipment === eq} onPress={() => setEquipment(eq)} />
         ))}
       </View>
+
       <Text style={styles.sectionLabel}>Goal</Text>
       <View style={styles.optionRow}>
-        {['Lose Weight', 'Build Strength', 'Stay Active'].map((goal) => (
-          <TouchableOpacity key={goal} style={[styles.optionBtn, goal === 'Stay Active' && styles.optionActive]}>
-            <Text style={[styles.optionText, goal === 'Stay Active' && styles.optionTextActive]}>{goal}</Text>
-          </TouchableOpacity>
+        {['Lose Weight', 'Build Strength', 'Stay Active'].map((g) => (
+          <Option key={g} label={g} value={g} selected={goal === g} onPress={() => setGoal(g)} />
         ))}
       </View>
+
+      <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+        <Text style={styles.saveBtnText}>{saved ? '✅ Saved!' : 'Save Preferences'}</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -54,4 +78,6 @@ const styles = StyleSheet.create({
   optionActive: { backgroundColor: '#00C896', borderColor: '#00C896' },
   optionText: { color: '#aaa', fontSize: 14 },
   optionTextActive: { color: '#000', fontWeight: '600' },
+  saveBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 8 },
+  saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
 });

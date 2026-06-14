@@ -1,27 +1,50 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { getProfile } from '../lib/userProfile';
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30];
 
 export default function HomeScreen() {
   const router = useRouter();
+  const profile = getProfile();
+
+  const startWorkout = (minutes) => {
+    router.push({
+      pathname: '/workout',
+      params: {
+        minutes,
+        fitnessLevel: profile.fitnessLevel,
+        equipment: profile.equipment,
+        goal: profile.goal,
+      }
+    });
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.greeting}>Good morning 👋</Text>
       <Text style={styles.tagline}>How much time do you have?</Text>
+
       <View style={styles.timeGrid}>
         {TIME_OPTIONS.map((min) => (
-          <TouchableOpacity key={min} style={styles.timeCard} onPress={() => router.push({ pathname: '/workout', params: { minutes: min } })}>
+          <TouchableOpacity key={min} style={styles.timeCard} onPress={() => startWorkout(min)}>
             <Text style={styles.timeNumber}>{min}</Text>
             <Text style={styles.timeLabel}>min</Text>
           </TouchableOpacity>
         ))}
       </View>
+
+      <View style={styles.profileBadge}>
+        <Text style={styles.profileText}>
+          🎯 {profile.fitnessLevel} · {profile.equipment} · {profile.goal}
+        </Text>
+      </View>
+
       <View style={styles.todayCard}>
         <Text style={styles.todayTitle}>Today's Suggestion</Text>
         <Text style={styles.todayWorkout}>💪 10-min Upper Body Blast</Text>
         <Text style={styles.todaySub}>No equipment · Perfect for a lunch break</Text>
-        <TouchableOpacity style={styles.startBtn} onPress={() => router.push({ pathname: '/workout', params: { minutes: 10 } })}>
+        <TouchableOpacity style={styles.startBtn} onPress={() => startWorkout(10)}>
           <Text style={styles.startBtnText}>Start Now</Text>
         </TouchableOpacity>
       </View>
@@ -34,10 +57,12 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingTop: 40 },
   greeting: { fontSize: 28, fontWeight: '700', color: '#fff', marginBottom: 8 },
   tagline: { fontSize: 16, color: '#aaa', marginBottom: 32 },
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
+  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
   timeCard: { backgroundColor: '#1a1a1a', borderRadius: 16, width: '18%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333' },
   timeNumber: { fontSize: 20, fontWeight: '700', color: '#00C896' },
   timeLabel: { fontSize: 11, color: '#666' },
+  profileBadge: { backgroundColor: '#1a1a1a', borderRadius: 10, padding: 10, marginBottom: 24, borderWidth: 1, borderColor: '#333' },
+  profileText: { color: '#aaa', fontSize: 13, textAlign: 'center' },
   todayCard: { backgroundColor: '#1a1a1a', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#333' },
   todayTitle: { fontSize: 13, color: '#666', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
   todayWorkout: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 6 },

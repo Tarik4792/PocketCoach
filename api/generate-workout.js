@@ -39,7 +39,7 @@ Equipment: ${equipment || 'None'}
 Goal: ${goal || 'Stay Active'}
 ${varietyInstruction}
 
-Choose exercises that fit the "${randomTheme}" theme. Be creative and vary the exercises significantly.
+IMPORTANT: Use only standard, well-known exercise names such as "Push-Ups", "Squats", "Lunges", "Plank", "Burpees", "Mountain Climbers", "Glute Bridge", "Jumping Jacks", "High Knees", "Tricep Dips", "Bicycle Crunches", "Dead Bug", "Superman", "Hip Thrust". Do NOT use creative or compound names. Keep names simple and searchable.
 
 Respond with ONLY a JSON object in this exact format, no markdown:
 {
