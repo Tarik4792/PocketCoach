@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function WorkoutScreen() {
   const { minutes, fitnessLevel, equipment, goal } = useLocalSearchParams();
@@ -10,13 +10,84 @@ export default function WorkoutScreen() {
   const [error, setError] = useState(null);
   const [expandedExercise, setExpandedExercise] = useState(null);
   const [exerciseDetails, setExerciseDetails] = useState({});
-  const [loadingGif, setLoadingGif] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(null);
+
+  // Timer state
+  const [timerActive, setTimerActive] = useState(false);
+  const [currentExIndex, setCurrentExIndex] = useState(0);
+  const [isResting, setIsResting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [workoutComplete, setWorkoutComplete] = useState(false);
+  const intervalRef = useRef(null);
+
+  const parseDuration = (str) => {
+    if (!str) return 30;
+    const match = str.match(/(\d+)/);
+    return match ? parseInt(match[1]) : 30;
+  };
+
+  useEffect(() => {
+    if (timerActive && timeLeft > 0) {
+      intervalRef.current = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    } else if (timerActive && timeLeft === 0) {
+      handleTimerEnd();
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [timerActive, timeLeft]);
+
+  const handleTimerEnd = () => {
+    clearInterval(intervalRef.current);
+    if (!workout) return;
+    if (isResting) {
+      const nextIndex = currentExIndex + 1;
+      if (nextIndex >= workout.exercises.length) {
+        setTimerActive(false);
+        setWorkoutComplete(true);
+      } else {
+        setCurrentExIndex(nextIndex);
+        setIsResting(false);
+        const ex = workout.exercises[nextIndex];
+        setTimeLeft(parseDuration(ex.duration || ex.reps));
+      }
+    } else {
+      const ex = workout.exercises[currentExIndex];
+      const restTime = parseDuration(ex.rest);
+      setIsResting(true);
+      setTimeLeft(restTime);
+    }
+  };
+
+  const startTimer = () => {
+    if (!workout) return;
+    setCurrentExIndex(0);
+    setIsResting(false);
+    setWorkoutComplete(false);
+    const ex = workout.exercises[0];
+    setTimeLeft(parseDuration(ex.duration || ex.reps));
+    setTimerActive(true);
+  };
+
+  const skipCurrent = () => {
+    clearInterval(intervalRef.current);
+    handleTimerEnd();
+  };
+
+  const stopTimer = () => {
+    clearInterval(intervalRef.current);
+    setTimerActive(false);
+    setIsResting(false);
+    setCurrentExIndex(0);
+    setWorkoutComplete(false);
+  };
 
   const generateWorkout = async () => {
     setLoading(true);
     setError(null);
     setExerciseDetails({});
     setExpandedExercise(null);
+    stopTimer();
     try {
       const previousWorkout = workout ? workout.exercises.map(e => e.name).join(', ') : null;
       const response = await fetch('/api/generate-workout', {
@@ -38,7 +109,7 @@ export default function WorkoutScreen() {
     if (expandedExercise === ex.name) { setExpandedExercise(null); return; }
     setExpandedExercise(ex.name);
     if (exerciseDetails[ex.name]) return;
-    setLoadingGif(ex.name);
+    setLoadingDetail(ex.name);
     try {
       const response = await fetch('/api/get-exercise', {
         method: 'POST',
@@ -50,10 +121,65 @@ export default function WorkoutScreen() {
     } catch (err) {
       setExerciseDetails(prev => ({ ...prev, [ex.name]: { found: false } }));
     } finally {
-      setLoadingGif(null);
+      setLoadingDetail(null);
     }
   };
 
+  // Timer Screen
+  if (timerActive || workoutComplete) {
+    if (workoutComplete) {
+      return (
+        <View style={styles.timerScreen}>
+          <Text style={styles.completeEmoji}>🎉</Text>
+          <Text style={styles.completeTitle}>Workout Complete!</Text>
+          <Text style={styles.completeSub}>You crushed it. Every minute counts.</Text>
+          <TouchableOpacity style={styles.timerBtn} onPress={() => router.push('/')}>
+            <Text style={styles.timerBtnText}>Back to Home</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.timerBtnOutline} onPress={() => { setWorkoutComplete(false); generateWorkout(); }}>
+            <Text style={styles.timerBtnOutlineText}>Generate Another</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    const currentEx = workout.exercises[currentExIndex];
+    const progress = ((currentExIndex) / workout.exercises.length) * 100;
+
+    return (
+      <View style={styles.timerScreen}>
+        <TouchableOpacity style={styles.stopBtn} onPress={stopTimer}>
+          <Text style={styles.stopBtnText}>✕ Stop</Text>
+        </TouchableOpacity>
+
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBar, { width: `${progress}%` }]} />
+        </View>
+        <Text style={styles.progressText}>{currentExIndex + 1} / {workout.exercises.length}</Text>
+
+        <Text style={styles.timerPhase}>{isResting ? '😮‍💨 Rest' : '💪 Exercise'}</Text>
+        <Text style={styles.timerExName}>{isResting ? 'Rest' : currentEx.name}</Text>
+        {!isResting && (
+          <Text style={styles.timerExMeta}>{currentEx.duration || currentEx.reps}</Text>
+        )}
+
+        <View style={styles.timerCircle}>
+          <Text style={styles.timerNumber}>{timeLeft}</Text>
+          <Text style={styles.timerSec}>sec</Text>
+        </View>
+
+        {!isResting && currentExIndex + 1 < workout.exercises.length && (
+          <Text style={styles.nextUp}>Next: {workout.exercises[currentExIndex + 1].name}</Text>
+        )}
+
+        <TouchableOpacity style={styles.skipBtn} onPress={skipCurrent}>
+          <Text style={styles.skipBtnText}>Skip →</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Main Workout Screen
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Your {minutes || 10}-Min Workout</Text>
@@ -85,6 +211,11 @@ export default function WorkoutScreen() {
       {workout && (
         <View>
           <Text style={styles.workoutTitle}>{workout.title}</Text>
+
+          <TouchableOpacity style={styles.startTimerBtn} onPress={startTimer}>
+            <Text style={styles.startTimerText}>▶ Start Workout Timer</Text>
+          </TouchableOpacity>
+
           {workout.exercises.map((ex, i) => (
             <View key={i}>
               <TouchableOpacity
@@ -101,28 +232,17 @@ export default function WorkoutScreen() {
 
               {expandedExercise === ex.name && (
                 <View style={styles.detailBox}>
-                  {loadingGif === ex.name ? (
+                  {loadingDetail === ex.name ? (
                     <View style={styles.loadingBox}>
                       <ActivityIndicator size="small" color="#00C896" />
-                      <Text style={styles.gifLoadingText}>Loading details...</Text>
                     </View>
                   ) : (
                     <View>
                       {exerciseDetails[ex.name]?.targetMuscle && (
                         <View style={styles.muscleRow}>
-                          <View style={styles.muscleTag}>
-                            <Text style={styles.muscleTagText}>🎯 {exerciseDetails[ex.name].targetMuscle}</Text>
-                          </View>
-                          {exerciseDetails[ex.name]?.bodyPart && (
-                            <View style={styles.muscleTag}>
-                              <Text style={styles.muscleTagText}>💪 {exerciseDetails[ex.name].bodyPart}</Text>
-                            </View>
-                          )}
-                          {exerciseDetails[ex.name]?.difficulty && (
-                            <View style={styles.muscleTag}>
-                              <Text style={styles.muscleTagText}>⚡ {exerciseDetails[ex.name].difficulty}</Text>
-                            </View>
-                          )}
+                          <View style={styles.muscleTag}><Text style={styles.muscleTagText}>🎯 {exerciseDetails[ex.name].targetMuscle}</Text></View>
+                          {exerciseDetails[ex.name]?.bodyPart && <View style={styles.muscleTag}><Text style={styles.muscleTagText}>💪 {exerciseDetails[ex.name].bodyPart}</Text></View>}
+                          {exerciseDetails[ex.name]?.difficulty && <View style={styles.muscleTag}><Text style={styles.muscleTagText}>⚡ {exerciseDetails[ex.name].difficulty}</Text></View>}
                         </View>
                       )}
                       {exerciseDetails[ex.name]?.secondaryMuscles?.length > 0 && (
@@ -176,7 +296,9 @@ const styles = StyleSheet.create({
   errorText: { color: '#ff6b6b', fontSize: 15, textAlign: 'center' },
   retryBtn: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#333' },
   retryText: { color: '#aaa', fontWeight: '600' },
-  workoutTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 20 },
+  workoutTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 16 },
+  startTimerBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 24 },
+  startTimerText: { color: '#000', fontWeight: '700', fontSize: 16 },
   exerciseCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, marginBottom: 2, borderWidth: 1, borderColor: '#333', gap: 16 },
   exerciseCardActive: { borderColor: '#00C896', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   exNum: { fontSize: 20, fontWeight: '700', color: '#00C896', width: 28 },
@@ -185,7 +307,6 @@ const styles = StyleSheet.create({
   exMeta: { fontSize: 13, color: '#666' },
   arrow: { color: '#00C896', fontSize: 12 },
   detailBox: { backgroundColor: '#111', borderWidth: 1, borderTopWidth: 0, borderColor: '#00C896', borderBottomLeftRadius: 14, borderBottomRightRadius: 14, padding: 16, marginBottom: 12 },
-  gifLoadingText: { color: '#aaa', fontSize: 13 },
   muscleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   muscleTag: { backgroundColor: '#1a2e1a', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#00C896' },
   muscleTagText: { color: '#00C896', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
@@ -199,4 +320,28 @@ const styles = StyleSheet.create({
   completeBtnText: { color: '#00C896', fontWeight: '700', fontSize: 16 },
   regenerateBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center' },
   regenerateText: { color: '#000', fontWeight: '700', fontSize: 16 },
+
+  // Timer styles
+  timerScreen: { flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  stopBtn: { position: 'absolute', top: 60, left: 24 },
+  stopBtnText: { color: '#666', fontSize: 16 },
+  progressBarContainer: { width: '100%', height: 4, backgroundColor: '#222', borderRadius: 2, marginBottom: 8 },
+  progressBar: { height: 4, backgroundColor: '#00C896', borderRadius: 2 },
+  progressText: { color: '#666', fontSize: 13, marginBottom: 40 },
+  timerPhase: { fontSize: 18, color: '#00C896', fontWeight: '600', marginBottom: 8 },
+  timerExName: { fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', marginBottom: 8 },
+  timerExMeta: { fontSize: 15, color: '#aaa', marginBottom: 40 },
+  timerCircle: { width: 180, height: 180, borderRadius: 90, borderWidth: 4, borderColor: '#00C896', alignItems: 'center', justifyContent: 'center', marginBottom: 40 },
+  timerNumber: { fontSize: 64, fontWeight: '700', color: '#fff' },
+  timerSec: { fontSize: 16, color: '#666' },
+  nextUp: { fontSize: 14, color: '#666', marginBottom: 32 },
+  skipBtn: { backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, borderWidth: 1, borderColor: '#333' },
+  skipBtnText: { color: '#aaa', fontWeight: '600', fontSize: 15 },
+  completeEmoji: { fontSize: 64, marginBottom: 16 },
+  completeTitle: { fontSize: 32, fontWeight: '700', color: '#fff', marginBottom: 8 },
+  completeSub: { fontSize: 16, color: '#aaa', marginBottom: 48, textAlign: 'center' },
+  timerBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center', width: '100%', marginBottom: 12 },
+  timerBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
+  timerBtnOutline: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 18, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: '#00C896' },
+  timerBtnOutlineText: { color: '#00C896', fontWeight: '700', fontSize: 16 },
 });
