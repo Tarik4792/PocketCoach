@@ -1,21 +1,30 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { useState } from 'react';
-import { getProfile, updateProfile } from '../lib/userProfile';
+import { useState, useEffect } from 'react';
+import { getProfile, updateProfile } from '../../lib/userProfile';
 
 export default function ProfileScreen() {
-  const profile = getProfile();
-  const [fitnessLevel, setFitnessLevel] = useState(profile.fitnessLevel);
-  const [equipment, setEquipment] = useState(profile.equipment);
-  const [goal, setGoal] = useState(profile.goal);
+  const [fitnessLevel, setFitnessLevel] = useState('Intermediate');
+  const [equipment, setEquipment] = useState('None');
+  const [goal, setGoal] = useState('Stay Active');
+  const [name, setName] = useState('');
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
-    updateProfile({ fitnessLevel, equipment, goal });
+  useEffect(() => {
+    getProfile().then((profile) => {
+      setFitnessLevel(profile.fitnessLevel);
+      setEquipment(profile.equipment);
+      setGoal(profile.goal);
+      setName(profile.name);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    await updateProfile({ fitnessLevel, equipment, goal });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const Option = ({ label, value, selected, onPress }) => (
+  const Option = ({ label, selected, onPress }) => (
     <TouchableOpacity
       style={[styles.optionBtn, selected && styles.optionActive]}
       onPress={onPress}
@@ -28,9 +37,11 @@ export default function ProfileScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Profile</Text>
       <View style={styles.avatarRow}>
-        <View style={styles.avatar}><Text style={styles.avatarText}>T</Text></View>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{name ? name[0].toUpperCase() : '?'}</Text>
+        </View>
         <View>
-          <Text style={styles.name}>{profile.name}</Text>
+          <Text style={styles.name}>{name || 'Your Name'}</Text>
           <Text style={styles.sub}>Busy Professional 💼</Text>
         </View>
       </View>
@@ -38,21 +49,21 @@ export default function ProfileScreen() {
       <Text style={styles.sectionLabel}>Fitness Level</Text>
       <View style={styles.optionRow}>
         {['Beginner', 'Intermediate', 'Advanced'].map((level) => (
-          <Option key={level} label={level} value={level} selected={fitnessLevel === level} onPress={() => setFitnessLevel(level)} />
+          <Option key={level} label={level} selected={fitnessLevel === level} onPress={() => setFitnessLevel(level)} />
         ))}
       </View>
 
       <Text style={styles.sectionLabel}>Equipment</Text>
       <View style={styles.optionRow}>
         {['None', 'Dumbbells', 'Resistance Bands', 'Full Gym'].map((eq) => (
-          <Option key={eq} label={eq} value={eq} selected={equipment === eq} onPress={() => setEquipment(eq)} />
+          <Option key={eq} label={eq} selected={equipment === eq} onPress={() => setEquipment(eq)} />
         ))}
       </View>
 
       <Text style={styles.sectionLabel}>Goal</Text>
       <View style={styles.optionRow}>
         {['Lose Weight', 'Build Strength', 'Stay Active'].map((g) => (
-          <Option key={g} label={g} value={g} selected={goal === g} onPress={() => setGoal(g)} />
+          <Option key={g} label={g} selected={goal === g} onPress={() => setGoal(g)} />
         ))}
       </View>
 

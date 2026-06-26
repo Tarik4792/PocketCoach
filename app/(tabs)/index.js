@@ -1,12 +1,17 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getProfile } from '../lib/userProfile';
+import { getProfile } from '../../lib/userProfile';
+import { useState, useEffect } from 'react';
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30];
 
 export default function HomeScreen() {
   const router = useRouter();
-  const profile = getProfile();
+  const [profile, setProfile] = useState({ fitnessLevel: 'Intermediate', equipment: 'None', goal: 'Stay Active', name: '' });
+
+  useEffect(() => {
+    getProfile().then(setProfile);
+  }, []);
 
   const startWorkout = (minutes) => {
     router.push({
