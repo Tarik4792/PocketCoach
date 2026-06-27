@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../../lib/supabase';
 
 export default function WorkoutScreen() {
   const { minutes, fitnessLevel, equipment, goal } = useLocalSearchParams();
@@ -11,6 +12,7 @@ export default function WorkoutScreen() {
   const [expandedExercise, setExpandedExercise] = useState(null);
   const [exerciseDetails, setExerciseDetails] = useState({});
   const [loadingDetail, setLoadingDetail] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   // Timer state
   const [timerActive, setTimerActive] = useState(false);
@@ -45,6 +47,7 @@ export default function WorkoutScreen() {
       if (nextIndex >= workout.exercises.length) {
         setTimerActive(false);
         setWorkoutComplete(true);
+        saveWorkout();
       } else {
         setCurrentExIndex(nextIndex);
         setIsResting(false);
@@ -56,6 +59,27 @@ export default function WorkoutScreen() {
       const restTime = parseDuration(ex.rest);
       setIsResting(true);
       setTimeLeft(restTime);
+    }
+  };
+
+  const saveWorkout = async () => {
+    if (!workout) return;
+    setSaving(true);
+    try {
+      await supabase.from('workouts').insert({
+        title: workout.title,
+        theme: workout.theme || null,
+        duration_minutes: parseInt(minutes) || 10,
+        exercises: workout.exercises,
+        tip: workout.tip || null,
+        fitness_level: fitnessLevel || 'Intermediate',
+        equipment: equipment || 'None',
+        goal: goal || 'Stay Active',
+      });
+    } catch (e) {
+      console.log('Failed to save workout:', e);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -125,6 +149,11 @@ export default function WorkoutScreen() {
     }
   };
 
+  const handleCompleteWorkout = async () => {
+    await saveWorkout();
+    router.push('/');
+  };
+
   // Timer Screen
   if (timerActive || workoutComplete) {
     if (workoutComplete) {
@@ -133,6 +162,7 @@ export default function WorkoutScreen() {
           <Text style={styles.completeEmoji}>🎉</Text>
           <Text style={styles.completeTitle}>Workout Complete!</Text>
           <Text style={styles.completeSub}>You crushed it. Every minute counts.</Text>
+          {saving && <ActivityIndicator size="small" color="#00C896" style={{ marginBottom: 16 }} />}
           <TouchableOpacity style={styles.timerBtn} onPress={() => router.push('/')}>
             <Text style={styles.timerBtnText}>Back to Home</Text>
           </TouchableOpacity>
@@ -151,27 +181,20 @@ export default function WorkoutScreen() {
         <TouchableOpacity style={styles.stopBtn} onPress={stopTimer}>
           <Text style={styles.stopBtnText}>✕ Stop</Text>
         </TouchableOpacity>
-
         <View style={styles.progressBarContainer}>
           <View style={[styles.progressBar, { width: `${progress}%` }]} />
         </View>
         <Text style={styles.progressText}>{currentExIndex + 1} / {workout.exercises.length}</Text>
-
         <Text style={styles.timerPhase}>{isResting ? '😮‍💨 Rest' : '💪 Exercise'}</Text>
         <Text style={styles.timerExName}>{isResting ? 'Rest' : currentEx.name}</Text>
-        {!isResting && (
-          <Text style={styles.timerExMeta}>{currentEx.duration || currentEx.reps}</Text>
-        )}
-
+        {!isResting && <Text style={styles.timerExMeta}>{currentEx.duration || currentEx.reps}</Text>}
         <View style={styles.timerCircle}>
           <Text style={styles.timerNumber}>{timeLeft}</Text>
           <Text style={styles.timerSec}>sec</Text>
         </View>
-
         {!isResting && currentExIndex + 1 < workout.exercises.length && (
           <Text style={styles.nextUp}>Next: {workout.exercises[currentExIndex + 1].name}</Text>
         )}
-
         <TouchableOpacity style={styles.skipBtn} onPress={skipCurrent}>
           <Text style={styles.skipBtnText}>Skip →</Text>
         </TouchableOpacity>
@@ -211,7 +234,6 @@ export default function WorkoutScreen() {
       {workout && (
         <View>
           <Text style={styles.workoutTitle}>{workout.title}</Text>
-
           <TouchableOpacity style={styles.startTimerBtn} onPress={startTimer}>
             <Text style={styles.startTimerText}>▶ Start Workout Timer</Text>
           </TouchableOpacity>
@@ -233,9 +255,7 @@ export default function WorkoutScreen() {
               {expandedExercise === ex.name && (
                 <View style={styles.detailBox}>
                   {loadingDetail === ex.name ? (
-                    <View style={styles.loadingBox}>
-                      <ActivityIndicator size="small" color="#00C896" />
-                    </View>
+                    <View style={styles.loadingBox}><ActivityIndicator size="small" color="#00C896" /></View>
                   ) : (
                     <View>
                       {exerciseDetails[ex.name]?.targetMuscle && (
@@ -270,8 +290,8 @@ export default function WorkoutScreen() {
               <Text style={styles.tipText}>💡 {workout.tip}</Text>
             </View>
           )}
-          <TouchableOpacity style={styles.completeBtn} onPress={() => router.push('/')}>
-            <Text style={styles.completeBtnText}>✅ Complete Workout</Text>
+          <TouchableOpacity style={styles.completeBtn} onPress={handleCompleteWorkout}>
+            <Text style={styles.completeBtnText}>{saving ? 'Saving...' : '✅ Complete Workout'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.regenerateBtn} onPress={generateWorkout}>
             <Text style={styles.regenerateText}>⚡ Generate Another</Text>
@@ -320,8 +340,6 @@ const styles = StyleSheet.create({
   completeBtnText: { color: '#00C896', fontWeight: '700', fontSize: 16 },
   regenerateBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center' },
   regenerateText: { color: '#000', fontWeight: '700', fontSize: 16 },
-
-  // Timer styles
   timerScreen: { flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center', padding: 24 },
   stopBtn: { position: 'absolute', top: 60, left: 24 },
   stopBtnText: { color: '#666', fontSize: 16 },
