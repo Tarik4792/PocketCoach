@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { calculateStreak, getStreakMessage } from '../../lib/streaks';
 
 const estimateCalories = (minutes) => Math.round((minutes || 10) * 8.5);
 
@@ -23,6 +24,7 @@ const isThisWeek = (dateStr) => {
 export default function HistoryScreen() {
   const [workouts, setWorkouts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     fetchHistory();
@@ -34,7 +36,10 @@ export default function HistoryScreen() {
         .from('workouts')
         .select('*')
         .order('created_at', { ascending: false });
-      if (!error && data) setWorkouts(data);
+      if (!error && data) {
+        setWorkouts(data);
+        setStreak(calculateStreak(data));
+      }
     } catch (e) {
       console.log('Failed to fetch history:', e);
     } finally {
@@ -49,6 +54,16 @@ export default function HistoryScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Workout History</Text>
+
+      {streak > 0 && (
+        <View style={styles.streakCard}>
+          <Text style={styles.streakEmoji}>🔥</Text>
+          <View>
+            <Text style={styles.streakNum}>{streak} day streak</Text>
+            <Text style={styles.streakMsg}>{getStreakMessage(streak)}</Text>
+          </View>
+        </View>
+      )}
 
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
@@ -98,6 +113,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   content: { padding: 24, paddingTop: 40 },
   heading: { fontSize: 26, fontWeight: '700', color: '#fff', marginBottom: 24 },
+  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#f97316' },
+  streakEmoji: { fontSize: 32 },
+  streakNum: { fontSize: 18, fontWeight: '700', color: '#f97316' },
+  streakMsg: { fontSize: 13, color: '#aaa', marginTop: 2 },
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   statCard: { flex: 1, backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
   statNum: { fontSize: 24, fontWeight: '700', color: '#00C896' },
