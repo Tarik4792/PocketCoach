@@ -1,8 +1,10 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
 import { getProfile, updateProfile } from '../../lib/userProfile';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const [fitnessLevel, setFitnessLevel] = useState('Intermediate');
   const [equipment, setEquipment] = useState('None');
   const [goal, setGoal] = useState('Stay Active');
@@ -70,6 +72,16 @@ export default function ProfileScreen() {
       <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
         <Text style={styles.saveBtnText}>{saved ? '✅ Saved!' : 'Save Preferences'}</Text>
       </TouchableOpacity>
+
+      <View style={styles.linksRow}>
+        <TouchableOpacity onPress={() => router.push('/support')}>
+          <Text style={styles.linkText}>Support</Text>
+        </TouchableOpacity>
+        <Text style={styles.linkDot}>·</Text>
+        <TouchableOpacity onPress={() => router.push('/privacy')}>
+          <Text style={styles.linkText}>Privacy Policy</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -91,4 +103,7 @@ const styles = StyleSheet.create({
   optionTextActive: { color: '#000', fontWeight: '600' },
   saveBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
+  linksRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24, marginBottom: 8 },
+  linkText: { color: '#666', fontSize: 14 },
+  linkDot: { color: '#666', fontSize: 14 },
 });
