@@ -1,23 +1,66 @@
+const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
+const GOALS = ['Lose Weight', 'Build Strength', 'Stay Active'];
+
+const EQUIPMENT_RULES = {
+  'None': 'Bodyweight only. No equipment and no furniture (no chairs, benches or bars).',
+  'Dumbbells': 'Dumbbells only. Most exercises must use dumbbells and be named with a "Dumbbell" prefix, such as "Dumbbell Goblet Squat", "Dumbbell Row", "Dumbbell Shoulder Press", "Dumbbell Romanian Deadlift", "Dumbbell Lunge", "Dumbbell Curl". One or two bodyweight moves are fine for core.',
+  'Resistance Bands': 'Resistance bands only. Most exercises must use a band and be named with a "Band" prefix, such as "Band Row", "Band Squat", "Band Pull Apart", "Band Shoulder Press".',
+  'Full Gym': 'Full gym available. Use barbells, dumbbells, cables and machines, with standard names such as "Barbell Squat", "Cable Row", "Lat Pulldown", "Leg Press".',
+};
+
+const THEMES = [
+  'cardio-focused', 'strength-focused', 'core-focused', 'full-body circuit',
+  'upper-body focused', 'lower-body focused', 'HIIT-style', 'mobility and strength',
+  'endurance-based', 'power and explosiveness',
+];
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { minutes, fitnessLevel, equipment, goal, previousWorkout } = req.body;
+  const body = req.body || {};
 
-  const varietyInstruction = previousWorkout
-    ? `IMPORTANT: Do NOT use any of these exercises from the previous workout: ${previousWorkout}. Create a completely different workout with new exercises.`
+  // Validate and whitelist inputs
+  const minutes = Math.min(Math.max(parseInt(body.minutes, 10) || 10, 1), 60);
+  const fitnessLevel = LEVELS.includes(body.fitnessLevel) ? body.fitnessLevel : 'Intermediate';
+  const equipment = EQUIPMENT_RULES[body.equipment] ? body.equipment : 'None';
+  const goal = GOALS.includes(body.goal) ? body.goal : 'Stay Active';
+  const previousWorkout = typeof body.previousWorkout === 'string'
+    ? body.previousWorkout.replace(/[\r\n]+/g, ' ').slice(0, 300)
     : '';
 
-  const themes = [
-    'cardio-focused', 'strength-focused', 'core-focused', 'full-body circuit',
-    'upper-body focused', 'lower-body focused', 'HIIT-style', 'mobility and strength',
-    'endurance-based', 'power and explosiveness'
-  ];
-  const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+  const varietyInstruction = previousWorkout
+    ? `Do NOT use any of these exercises from the previous workout: ${previousWorkout}. Use different exercises.`
+    : '';
+
+  const randomTheme = THEMES[Math.floor(Math.random() * THEMES.length)];
+
+  const prompt = `Create a ${minutes}-minute ${randomTheme} workout for a busy professional.
+Fitness level: ${fitnessLevel}
+Goal: ${goal}
+Equipment rule: ${EQUIPMENT_RULES[equipment]}
+${varietyInstruction}
+
+Rules:
+- Match difficulty to the fitness level. Beginner means low-impact basics. Advanced means challenging variations.
+- Only use safe, well-known exercises. No maximal-effort lifts and nothing that needs a spotter.
+- Use simple, standard, searchable exercise names. Do not invent creative or compound names.
+- Follow the equipment rule strictly.
+
+Respond with ONLY a JSON object in this exact format, no markdown:
+{
+  "title": "creative workout title that reflects the theme",
+  "theme": "${randomTheme}",
+  "exercises": [
+    { "name": "Exercise Name", "duration": "45 sec", "rest": "15 sec", "reps": null },
+    { "name": "Exercise Name", "duration": null, "rest": "30 sec", "reps": "10 reps" }
+  ],
+  "tip": "one motivational tip for busy professionals"
+}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -30,38 +73,28 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: `Create a ${minutes}-minute ${randomTheme} workout for a busy professional.
-Fitness level: ${fitnessLevel || 'Intermediate'}
-Equipment: ${equipment || 'None'}
-Goal: ${goal || 'Stay Active'}
-${varietyInstruction}
-
-IMPORTANT: Use only standard, well-known exercise names such as "Push-Ups", "Squats", "Lunges", "Plank", "Burpees", "Mountain Climbers", "Glute Bridge", "Jumping Jacks", "High Knees", "Tricep Dips", "Bicycle Crunches", "Dead Bug", "Superman", "Hip Thrust". Do NOT use creative or compound names. Keep names simple and searchable.
-
-Respond with ONLY a JSON object in this exact format, no markdown:
-{
-  "title": "creative workout title that reflects the theme",
-  "theme": "${randomTheme}",
-  "exercises": [
-    { "name": "Exercise Name", "duration": "45 sec", "rest": "15 sec", "reps": null },
-    { "name": "Exercise Name", "duration": null, "rest": "30 sec", "reps": "10 reps" }
-  ],
-  "tip": "one motivational tip for busy professionals"
-}`
-          }
-        ],
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
     const data = await response.json();
-    const text = data.content[0].text.trim();
-    const workout = JSON.parse(text);
+
+    if (!response.ok) {
+      console.error('Anthropic error', response.status, JSON.stringify(data));
+      return res.status(502).json({ error: 'Workout generation failed. Please try again.' });
+    }
+
+    const text = (data.content?.[0]?.text || '').trim();
+    const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const workout = JSON.parse(cleaned);
+
+    if (!Array.isArray(workout.exercises) || workout.exercises.length === 0) {
+      throw new Error('Invalid workout shape');
+    }
+
     res.status(200).json(workout);
   } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ error: error.message });
+    console.error('generate-workout error:', error.message);
+    res.status(500).json({ error: 'Workout generation failed. Please try again.' });
   }
 }
