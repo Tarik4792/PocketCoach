@@ -1,11 +1,25 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { name } = req.body;
+  // Require a valid Supabase session (anonymous users count)
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const auth = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: process.env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    });
+    if (!auth.ok) return res.status(401).json({ error: 'Unauthorized' });
+  } catch (e) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const name = typeof req.body?.name === 'string' ? req.body.name.slice(0, 80) : '';
+  if (!name.trim()) return res.status(200).json({ found: false });
 
   const simplify = (n) => {
     return n
@@ -21,7 +35,7 @@ export default async function handler(req, res) {
   };
 
   const searchName = simplify(name);
-  console.log(`Searching for: "${searchName}" (from "${name}")`);
+  if (!searchName) return res.status(200).json({ found: false });
 
   try {
     const response = await fetch(
@@ -48,7 +62,7 @@ export default async function handler(req, res) {
       difficulty: exercise.difficulty || null,
     });
   } catch (error) {
-    console.error(error);
+    console.error('get-exercise error:', error.message);
     res.status(200).json({ found: false });
   }
 }

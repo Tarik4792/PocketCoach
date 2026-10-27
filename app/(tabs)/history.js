@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { ensureSession } from '../../lib/auth';
 import { calculateStreak, getStreakMessage } from '../../lib/streaks';
 
 const estimateCalories = (minutes) => Math.round((minutes || 10) * 8.5);
@@ -32,6 +33,7 @@ export default function HistoryScreen() {
 
   const fetchHistory = async () => {
     try {
+      await ensureSession();
       const { data, error } = await supabase
         .from('workouts')
         .select('*')

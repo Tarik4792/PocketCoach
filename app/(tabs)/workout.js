@@ -2,6 +2,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getAccessToken } from '../../lib/auth';
 
 export default function WorkoutScreen() {
   const { minutes, fitnessLevel, equipment, goal } = useLocalSearchParams();
@@ -24,20 +25,33 @@ export default function WorkoutScreen() {
 
   const parseDuration = (str) => {
     if (!str) return 30;
-    const match = str.match(/(\d+)/);
-    return match ? parseInt(match[1]) : 30;
+    const match = String(str).match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 30;
   };
 
+  // A rep-based exercise has no duration: the user taps Done instead of a countdown.
+  const isRepExercise = (ex) => !ex?.duration;
+  const repPhase =
+    timerActive && !isResting && !!workout && isRepExercise(workout.exercises[currentExIndex]);
+
   useEffect(() => {
-    if (timerActive && timeLeft > 0) {
+    if (!timerActive || repPhase) return;
+    if (timeLeft > 0) {
       intervalRef.current = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
+        setTimeLeft((prev) => prev - 1);
       }, 1000);
-    } else if (timerActive && timeLeft === 0) {
+    } else {
       handleTimerEnd();
     }
     return () => clearInterval(intervalRef.current);
-  }, [timerActive, timeLeft]);
+  }, [timerActive, timeLeft, repPhase]);
+
+  const startExercise = (index) => {
+    const ex = workout.exercises[index];
+    setCurrentExIndex(index);
+    setIsResting(false);
+    setTimeLeft(isRepExercise(ex) ? 0 : parseDuration(ex.duration));
+  };
 
   const handleTimerEnd = () => {
     clearInterval(intervalRef.current);
@@ -49,16 +63,12 @@ export default function WorkoutScreen() {
         setWorkoutComplete(true);
         saveWorkout();
       } else {
-        setCurrentExIndex(nextIndex);
-        setIsResting(false);
-        const ex = workout.exercises[nextIndex];
-        setTimeLeft(parseDuration(ex.duration || ex.reps));
+        startExercise(nextIndex);
       }
     } else {
       const ex = workout.exercises[currentExIndex];
-      const restTime = parseDuration(ex.rest);
       setIsResting(true);
-      setTimeLeft(restTime);
+      setTimeLeft(parseDuration(ex.rest));
     }
   };
 
@@ -66,16 +76,18 @@ export default function WorkoutScreen() {
     if (!workout) return;
     setSaving(true);
     try {
-      await supabase.from('workouts').insert({
+      await getAccessToken();
+      const { error: insertError } = await supabase.from('workouts').insert({
         title: workout.title,
         theme: workout.theme || null,
-        duration_minutes: parseInt(minutes) || 10,
+        duration_minutes: parseInt(minutes, 10) || 10,
         exercises: workout.exercises,
         tip: workout.tip || null,
         fitness_level: fitnessLevel || 'Intermediate',
         equipment: equipment || 'None',
         goal: goal || 'Stay Active',
       });
+      if (insertError) console.log('Failed to save workout:', insertError.message);
     } catch (e) {
       console.log('Failed to save workout:', e);
     } finally {
@@ -85,11 +97,8 @@ export default function WorkoutScreen() {
 
   const startTimer = () => {
     if (!workout) return;
-    setCurrentExIndex(0);
-    setIsResting(false);
     setWorkoutComplete(false);
-    const ex = workout.exercises[0];
-    setTimeLeft(parseDuration(ex.duration || ex.reps));
+    startExercise(0);
     setTimerActive(true);
   };
 
@@ -113,16 +122,24 @@ export default function WorkoutScreen() {
     setExpandedExercise(null);
     stopTimer();
     try {
-      const previousWorkout = workout ? workout.exercises.map(e => e.name).join(', ') : null;
+      const previousWorkout = workout ? workout.exercises.map((e) => e.name).join(', ') : null;
+      const token = await getAccessToken();
       const response = await fetch('/api/generate-workout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ minutes: minutes || 10, fitnessLevel: fitnessLevel || 'Intermediate', equipment: equipment || 'None', goal: goal || 'Stay Active', previousWorkout }),
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          minutes: minutes || 10,
+          fitnessLevel: fitnessLevel || 'Intermediate',
+          equipment: equipment || 'None',
+          goal: goal || 'Stay Active',
+          previousWorkout,
+        }),
       });
       const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      if (!response.ok || data.error) throw new Error(data.error || 'Request failed');
       setWorkout(data);
     } catch (err) {
+      setWorkout(null);
       setError('Failed to generate workout. Please try again.');
     } finally {
       setLoading(false);
@@ -135,15 +152,16 @@ export default function WorkoutScreen() {
     if (exerciseDetails[ex.name]) return;
     setLoadingDetail(ex.name);
     try {
+      const token = await getAccessToken();
       const response = await fetch('/api/get-exercise', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ name: ex.name }),
       });
       const data = await response.json();
-      setExerciseDetails(prev => ({ ...prev, [ex.name]: data }));
+      setExerciseDetails((prev) => ({ ...prev, [ex.name]: data }));
     } catch (err) {
-      setExerciseDetails(prev => ({ ...prev, [ex.name]: { found: false } }));
+      setExerciseDetails((prev) => ({ ...prev, [ex.name]: { found: false } }));
     } finally {
       setLoadingDetail(null);
     }
@@ -154,27 +172,31 @@ export default function WorkoutScreen() {
     router.push('/');
   };
 
-  // Timer Screen
-  if (timerActive || workoutComplete) {
-    if (workoutComplete) {
-      return (
-        <View style={styles.timerScreen}>
-          <Text style={styles.completeEmoji}>🎉</Text>
-          <Text style={styles.completeTitle}>Workout Complete!</Text>
-          <Text style={styles.completeSub}>You crushed it. Every minute counts.</Text>
-          {saving && <ActivityIndicator size="small" color="#00C896" style={{ marginBottom: 16 }} />}
-          <TouchableOpacity style={styles.timerBtn} onPress={() => router.push('/')}>
-            <Text style={styles.timerBtnText}>Back to Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.timerBtnOutline} onPress={() => { setWorkoutComplete(false); generateWorkout(); }}>
-            <Text style={styles.timerBtnOutlineText}>Generate Another</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+  // Workout complete screen
+  if (workoutComplete) {
+    return (
+      <View style={styles.timerScreen}>
+        <Text style={styles.completeEmoji}>🎉</Text>
+        <Text style={styles.completeTitle}>Workout Complete!</Text>
+        <Text style={styles.completeSub}>You crushed it. Every minute counts.</Text>
+        {saving && <ActivityIndicator size="small" color="#00C896" style={{ marginBottom: 16 }} />}
+        <TouchableOpacity style={styles.timerBtn} onPress={() => router.push('/')}>
+          <Text style={styles.timerBtnText}>Back to Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.timerBtnOutline}
+          onPress={() => { setWorkoutComplete(false); generateWorkout(); }}
+        >
+          <Text style={styles.timerBtnOutlineText}>Generate Another</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
+  // Timer screen
+  if (timerActive && workout) {
     const currentEx = workout.exercises[currentExIndex];
-    const progress = ((currentExIndex) / workout.exercises.length) * 100;
+    const progress = (currentExIndex / workout.exercises.length) * 100;
 
     return (
       <View style={styles.timerScreen}>
@@ -188,21 +210,31 @@ export default function WorkoutScreen() {
         <Text style={styles.timerPhase}>{isResting ? '😮‍💨 Rest' : '💪 Exercise'}</Text>
         <Text style={styles.timerExName}>{isResting ? 'Rest' : currentEx.name}</Text>
         {!isResting && <Text style={styles.timerExMeta}>{currentEx.duration || currentEx.reps}</Text>}
-        <View style={styles.timerCircle}>
-          <Text style={styles.timerNumber}>{timeLeft}</Text>
-          <Text style={styles.timerSec}>sec</Text>
-        </View>
+
+        {repPhase ? (
+          <TouchableOpacity style={styles.doneBtn} onPress={skipCurrent}>
+            <Text style={styles.doneBtnText}>✅ Done</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.timerCircle}>
+            <Text style={styles.timerNumber}>{timeLeft}</Text>
+            <Text style={styles.timerSec}>sec</Text>
+          </View>
+        )}
+
         {!isResting && currentExIndex + 1 < workout.exercises.length && (
           <Text style={styles.nextUp}>Next: {workout.exercises[currentExIndex + 1].name}</Text>
         )}
-        <TouchableOpacity style={styles.skipBtn} onPress={skipCurrent}>
-          <Text style={styles.skipBtnText}>Skip →</Text>
-        </TouchableOpacity>
+        {!repPhase && (
+          <TouchableOpacity style={styles.skipBtn} onPress={skipCurrent}>
+            <Text style={styles.skipBtnText}>Skip →</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
 
-  // Main Workout Screen
+  // Main workout screen
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Your {minutes || 10}-Min Workout</Text>
@@ -231,7 +263,7 @@ export default function WorkoutScreen() {
         </View>
       )}
 
-      {workout && (
+      {workout && !loading && (
         <View>
           <Text style={styles.workoutTitle}>{workout.title}</Text>
           <TouchableOpacity style={styles.startTimerBtn} onPress={startTimer}>
@@ -340,19 +372,21 @@ const styles = StyleSheet.create({
   completeBtnText: { color: '#00C896', fontWeight: '700', fontSize: 16 },
   regenerateBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center' },
   regenerateText: { color: '#000', fontWeight: '700', fontSize: 16 },
-  timerScreen: { flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  timerScreen: { flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center', padding: 24, paddingTop: 110 },
   stopBtn: { position: 'absolute', top: 60, left: 24 },
   stopBtnText: { color: '#666', fontSize: 16 },
   progressBarContainer: { width: '100%', height: 4, backgroundColor: '#222', borderRadius: 2, marginBottom: 8 },
   progressBar: { height: 4, backgroundColor: '#00C896', borderRadius: 2 },
-  progressText: { color: '#666', fontSize: 13, marginBottom: 40 },
+  progressText: { color: '#666', fontSize: 13, marginBottom: 32 },
   timerPhase: { fontSize: 18, color: '#00C896', fontWeight: '600', marginBottom: 8 },
   timerExName: { fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', marginBottom: 8 },
-  timerExMeta: { fontSize: 15, color: '#aaa', marginBottom: 40 },
-  timerCircle: { width: 180, height: 180, borderRadius: 90, borderWidth: 4, borderColor: '#00C896', alignItems: 'center', justifyContent: 'center', marginBottom: 40 },
+  timerExMeta: { fontSize: 15, color: '#aaa', marginBottom: 32 },
+  timerCircle: { width: 180, height: 180, borderRadius: 90, borderWidth: 4, borderColor: '#00C896', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
   timerNumber: { fontSize: 64, fontWeight: '700', color: '#fff' },
   timerSec: { fontSize: 16, color: '#666' },
-  nextUp: { fontSize: 14, color: '#666', marginBottom: 32 },
+  doneBtn: { backgroundColor: '#00C896', borderRadius: 90, width: 180, height: 180, alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
+  doneBtnText: { color: '#000', fontWeight: '700', fontSize: 24 },
+  nextUp: { fontSize: 14, color: '#666', marginBottom: 24 },
   skipBtn: { backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, borderWidth: 1, borderColor: '#333' },
   skipBtnText: { color: '#aaa', fontWeight: '600', fontSize: 15 },
   completeEmoji: { fontSize: 64, marginBottom: 16 },
