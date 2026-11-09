@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getAccessToken } from '../../lib/auth';
+import { apiUrl } from '../../lib/api';
 
 export default function WorkoutScreen() {
   const { minutes, fitnessLevel, equipment, goal } = useLocalSearchParams();
@@ -124,7 +125,7 @@ export default function WorkoutScreen() {
     try {
       const previousWorkout = workout ? workout.exercises.map((e) => e.name).join(', ') : null;
       const token = await getAccessToken();
-      const response = await fetch('/api/generate-workout', {
+      const response = await fetch(apiUrl('/api/generate-workout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({
@@ -153,7 +154,7 @@ export default function WorkoutScreen() {
     setLoadingDetail(ex.name);
     try {
       const token = await getAccessToken();
-      const response = await fetch('/api/get-exercise', {
+      const response = await fetch(apiUrl('/api/get-exercise'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ name: ex.name }),
