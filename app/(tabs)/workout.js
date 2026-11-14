@@ -22,6 +22,8 @@ export default function WorkoutScreen() {
   const [isResting, setIsResting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [workoutComplete, setWorkoutComplete] = useState(false);
+  const [repCount, setRepCount] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const intervalRef = useRef(null);
 
   const parseDuration = (str) => {
@@ -34,6 +36,27 @@ export default function WorkoutScreen() {
   const isRepExercise = (ex) => !ex?.duration;
   const repPhase =
     timerActive && !isResting && !!workout && isRepExercise(workout.exercises[currentExIndex]);
+
+  // Parse a rep target like "12 reps" or "8 reps each leg" (each side doubles it).
+  const repTarget = (ex) => {
+    const m = String(ex?.reps || '').match(/(\d+)/);
+    const n = m ? parseInt(m[1], 10) : 10;
+    return /each|per|side|leg|arm/i.test(String(ex?.reps || '')) ? n * 2 : n;
+  };
+
+  // Count-up clock while a rep exercise is on screen
+  useEffect(() => {
+    if (!repPhase) return;
+    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [repPhase, currentExIndex]);
+
+  const tapRep = () => {
+    const target = repTarget(workout.exercises[currentExIndex]);
+    const next = repCount + 1;
+    setRepCount(next);
+    if (next >= target) skipCurrent();
+  };
 
   useEffect(() => {
     if (!timerActive || repPhase) return;
@@ -51,6 +74,8 @@ export default function WorkoutScreen() {
     const ex = workout.exercises[index];
     setCurrentExIndex(index);
     setIsResting(false);
+    setRepCount(0);
+    setElapsed(0);
     setTimeLeft(isRepExercise(ex) ? 0 : parseDuration(ex.duration));
   };
 
@@ -200,10 +225,15 @@ export default function WorkoutScreen() {
     const progress = (currentExIndex / workout.exercises.length) * 100;
 
     return (
-      <View style={styles.timerScreen}>
+      <View style={{ flex: 1, backgroundColor: '#0f0f0f' }}>
         <TouchableOpacity style={styles.stopBtn} onPress={stopTimer}>
           <Text style={styles.stopBtnText}>✕ Stop</Text>
         </TouchableOpacity>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.activeScreen}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.progressBarContainer}>
           <View style={[styles.progressBar, { width: `${progress}%` }]} />
         </View>
@@ -213,9 +243,18 @@ export default function WorkoutScreen() {
         {!isResting && <Text style={styles.timerExMeta}>{currentEx.duration || currentEx.reps}</Text>}
 
         {repPhase ? (
-          <TouchableOpacity style={styles.doneBtn} onPress={skipCurrent}>
-            <Text style={styles.doneBtnText}>✅ Done</Text>
-          </TouchableOpacity>
+          <View style={{ alignItems: 'center' }}>
+            <TouchableOpacity style={styles.doneBtn} onPress={tapRep} activeOpacity={0.7}>
+              <Text style={styles.repCount}>{repCount}</Text>
+              <Text style={styles.repOf}>of {repTarget(currentEx)} reps · tap each rep</Text>
+            </TouchableOpacity>
+            <Text style={styles.clock}>
+              ⏱ {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+            </Text>
+            <TouchableOpacity style={styles.skipBtn} onPress={skipCurrent}>
+              <Text style={styles.skipBtnText}>Done early ✓</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={styles.timerCircle}>
             <Text style={styles.timerNumber}>{timeLeft}</Text>
@@ -231,6 +270,7 @@ export default function WorkoutScreen() {
             <Text style={styles.skipBtnText}>Skip →</Text>
           </TouchableOpacity>
         )}
+        </ScrollView>
       </View>
     );
   }
@@ -293,7 +333,7 @@ export default function WorkoutScreen() {
                     <View>
                       {exerciseDetails[ex.name]?.targetMuscle && (
                         <View style={styles.muscleRow}>
-                          <View style={styles.muscleTag}><Text style={styles.muscleTagText}>🎯 {exerciseDetails[ex.name].targetMuscle}</Text></View>
+                          <View style={styles.muscleTag}><Text style={styles.muscleTagText}>🎯{exerciseDetails[ex.name].targetMuscle}</Text></View>
                           {exerciseDetails[ex.name]?.bodyPart && <View style={styles.muscleTag}><Text style={styles.muscleTagText}>💪 {exerciseDetails[ex.name].bodyPart}</Text></View>}
                           {exerciseDetails[ex.name]?.difficulty && <View style={styles.muscleTag}><Text style={styles.muscleTagText}>⚡ {exerciseDetails[ex.name].difficulty}</Text></View>}
                         </View>
@@ -323,6 +363,9 @@ export default function WorkoutScreen() {
               <Text style={styles.tipText}>💡 {workout.tip}</Text>
             </View>
           )}
+          <Text style={styles.disclaimer}>
+            PocketCoach gives general fitness suggestions, not medical advice. Check with your doctor before starting a new exercise program, and stop if you feel pain or dizziness.
+          </Text>
           <TouchableOpacity style={styles.completeBtn} onPress={handleCompleteWorkout}>
             <Text style={styles.completeBtnText}>{saving ? 'Saving...' : '✅ Complete Workout'}</Text>
           </TouchableOpacity>
@@ -369,31 +412,36 @@ const styles = StyleSheet.create({
   noData: { color: '#555', fontSize: 13, fontStyle: 'italic' },
   tipBox: { backgroundColor: '#1a2e1a', borderRadius: 14, padding: 16, marginBottom: 16, marginTop: 8, borderWidth: 1, borderColor: '#00C896' },
   tipText: { color: '#00C896', fontSize: 14, lineHeight: 20 },
+  disclaimer: { color: '#666', fontSize: 12, lineHeight: 18, textAlign: 'center', marginBottom: 16 },
   completeBtn: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#00C896' },
   completeBtnText: { color: '#00C896', fontWeight: '700', fontSize: 16 },
   regenerateBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center' },
   regenerateText: { color: '#000', fontWeight: '700', fontSize: 16 },
   timerScreen: { flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center', padding: 24, paddingTop: 110 },
-  stopBtn: { position: 'absolute', top: 60, left: 24 },
+  activeScreen: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 100, paddingBottom: 60 },
+  stopBtn: { position: 'absolute', top: 50, left: 24, zIndex: 10 },
   stopBtnText: { color: '#666', fontSize: 16 },
   progressBarContainer: { width: '100%', height: 4, backgroundColor: '#222', borderRadius: 2, marginBottom: 8 },
   progressBar: { height: 4, backgroundColor: '#00C896', borderRadius: 2 },
-  progressText: { color: '#666', fontSize: 13, marginBottom: 32 },
+  progressText: { color: '#666', fontSize: 13, marginBottom: 20 },
   timerPhase: { fontSize: 18, color: '#00C896', fontWeight: '600', marginBottom: 8 },
   timerExName: { fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', marginBottom: 8 },
-  timerExMeta: { fontSize: 15, color: '#aaa', marginBottom: 32 },
-  timerCircle: { width: 180, height: 180, borderRadius: 90, borderWidth: 4, borderColor: '#00C896', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
+  timerExMeta: { fontSize: 15, color: '#aaa', marginBottom: 20 },
+  timerCircle: { width: 150, height: 150, borderRadius: 75, borderWidth: 4, borderColor: '#00C896', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   timerNumber: { fontSize: 64, fontWeight: '700', color: '#fff' },
   timerSec: { fontSize: 16, color: '#666' },
-  doneBtn: { backgroundColor: '#00C896', borderRadius: 90, width: 180, height: 180, alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
+  doneBtn: { backgroundColor: '#00C896', borderRadius: 75, width: 150, height: 150, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  repCount: { color: '#000', fontWeight: '800', fontSize: 60 },
+  repOf: { color: '#00352a', fontWeight: '600', fontSize: 11, marginTop: 2 },
+  clock: { color: '#aaa', fontSize: 22, fontWeight: '600', marginBottom: 12, fontVariant: ['tabular-nums'] },
   doneBtnText: { color: '#000', fontWeight: '700', fontSize: 24 },
-  nextUp: { fontSize: 14, color: '#666', marginBottom: 24 },
+  nextUp: { fontSize: 14, color: '#666', marginBottom: 16 },
   skipBtn: { backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, borderWidth: 1, borderColor: '#333' },
   skipBtnText: { color: '#aaa', fontWeight: '600', fontSize: 15 },
   completeEmoji: { fontSize: 64, marginBottom: 16 },
   completeTitle: { fontSize: 32, fontWeight: '700', color: '#fff', marginBottom: 8 },
   completeSub: { fontSize: 16, color: '#aaa', marginBottom: 48, textAlign: 'center' },
-  timerBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center', width: '100%', marginBottom: 12 },
+  timerBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center',width: '100%', marginBottom: 12 },
   timerBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
   timerBtnOutline: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 18, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: '#00C896' },
   timerBtnOutlineText: { color: '#00C896', fontWeight: '700', fontSize: 16 },

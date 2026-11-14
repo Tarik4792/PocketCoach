@@ -1,7 +1,9 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { getProfile, updateProfile } from '../../lib/userProfile';
+import { deleteMyData } from '../../lib/auth';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -10,6 +12,7 @@ export default function ProfileScreen() {
   const [goal, setGoal] = useState('Stay Active');
   const [name, setName] = useState('');
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     getProfile().then((profile) => {
@@ -24,6 +27,35 @@ export default function ProfileScreen() {
     await updateProfile({ fitnessLevel, equipment, goal });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const doDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteMyData();
+      await AsyncStorage.clear();
+      router.replace('/');
+    } catch (e) {
+      console.log('Delete failed:', e);
+      const msg = 'Something went wrong. Please try again.';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Could not delete', msg);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    const title = 'Delete all my data?';
+    const msg = "This permanently removes your workout history and profile from this device and our servers. This can't be undone.";
+    if (Platform.OS === 'web') {
+      if (window.confirm(title + '\n\n' + msg)) doDelete();
+      return;
+    }
+    Alert.alert(title, msg, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: doDelete },
+    ]);
   };
 
   const Option = ({ label, selected, onPress }) => (
@@ -73,6 +105,14 @@ export default function ProfileScreen() {
         <Text style={styles.saveBtnText}>{saved ? '✅ Saved!' : 'Save Preferences'}</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.deleteBtn} onPress={confirmDelete} disabled={deleting}>
+        <Text style={styles.deleteBtnText}>{deleting ? 'Deleting...' : 'Delete my data'}</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.disclaimer}>
+        PocketCoach gives general fitness suggestions, not medical advice. Check with your doctor before starting a new exercise program, and stop if you feel pain or dizziness.
+      </Text>
+
       <View style={styles.linksRow}>
         <TouchableOpacity onPress={() => router.push('/support')}>
           <Text style={styles.linkText}>Support</Text>
@@ -103,6 +143,9 @@ const styles = StyleSheet.create({
   optionTextActive: { color: '#000', fontWeight: '600' },
   saveBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#000', fontWeight: '700', fontSize: 16 },
+  deleteBtn: { borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: '#ff6b6b' },
+  deleteBtnText: { color: '#ff6b6b', fontWeight: '600', fontSize: 15 },
+  disclaimer: { color: '#666', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 20 },
   linksRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24, marginBottom: 8 },
   linkText: { color: '#666', fontSize: 14 },
   linkDot: { color: '#666', fontSize: 14 },
