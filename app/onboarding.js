@@ -90,6 +90,11 @@ export default function OnboardingScreen() {
             ))}
           </View>
         )}
+        {isLast && (
+          <Text style={styles.disclaimer}>
+            PocketCoach gives general fitness suggestions, not medical advice. Check with your doctor before starting a new exercise program, and stop if you feel pain or dizziness.
+          </Text>
+        )}
       </View>
 
       <View style={styles.footer}>
@@ -124,6 +129,7 @@ const styles = StyleSheet.create({
   optionActive: { backgroundColor: '#00C896', borderColor: '#00C896' },
   optionText: { color: '#aaa', fontSize: 16, fontWeight: '600' },
   optionTextActive: { color: '#000' },
+  disclaimer: { color: '#666', fontSize: 12, lineHeight: 18, marginTop: 24 },
   footer: { flexDirection: 'row', gap: 12, padding: 24 },
   backBtn: { flex: 1, backgroundColor: '#1a1a1a', borderRadius: 16, padding: 18, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
   backBtnText: { color: '#aaa', fontWeight: '700', fontSize: 16 },

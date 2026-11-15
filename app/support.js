@@ -16,11 +16,11 @@ export default function SupportScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>📧 Contact Us</Text>
         <Text style={styles.cardBody}>
-          Have a question or issue? Send us an email and we'll get back to you within 24 hours.
+          Have a question or issue? Send us an email and we'll get back to you within 2 business days.
         </Text>
         <TouchableOpacity
           style={styles.btn}
-          onPress={() => Linking.openURL('mailto:support@pocketcoach.app')}
+          onPress={() => Linking.openURL('mailto:tarikkellmanapps@gmail.com?subject=PocketCoach%20Support')}
         >
           <Text style={styles.btnText}>Email Support</Text>
         </TouchableOpacity>
@@ -49,9 +49,9 @@ export default function SupportScreen() {
           Go to the Profile tab to update your fitness level, equipment, and goals at any time.
         </Text>
 
-        <Text style={styles.faqQ}>How do I delete my account?</Text>
+        <Text style={styles.faqQ}>How do I delete my data?</Text>
         <Text style={styles.faqA}>
-          You can delete your account and all associated data from the Profile screen. This action is permanent and cannot be undone.
+          Go to Profile and tap Delete my data. This permanently removes your workout history and profile, and it cannot be undone.
         </Text>
       </View>
 
