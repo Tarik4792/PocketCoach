@@ -1,9 +1,9 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { getProfile } from '../../lib/userProfile';
 import { supabase } from '../../lib/supabase';
 import { calculateStreak, getStreakMessage } from '../../lib/streaks';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30];
 
@@ -20,10 +20,13 @@ export default function HomeScreen() {
   const [streak, setStreak] = useState(0);
   const [streakMessage, setStreakMessage] = useState('');
 
-  useEffect(() => {
-    getProfile().then(setProfile);
-    fetchStreak();
-  }, []);
+  // Reload the profile and streak every time Home comes into view
+  useFocusEffect(
+    useCallback(() => {
+      getProfile().then(setProfile);
+      fetchStreak();
+    }, [])
+  );
 
   const fetchStreak = async () => {
     try {

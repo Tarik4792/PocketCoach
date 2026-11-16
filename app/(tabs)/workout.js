@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect, useRef } from 'react';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getAccessToken } from '../../lib/auth';
 import { apiUrl } from '../../lib/api';
@@ -27,6 +27,23 @@ export default function WorkoutScreen() {
   const [elapsed, setElapsed] = useState(0);
   const intervalRef = useRef(null);
   const usedRef = useRef({});
+
+  // If the saved profile changed since this workout was generated, discard it
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      getProfile().then((saved) => {
+        const u = usedRef.current;
+        if (!active || !workout || timerActive || !u.equipment) return;
+        if (saved.equipment !== u.equipment || saved.fitnessLevel !== u.fitnessLevel || saved.goal !== u.goal) {
+          setWorkout(null);
+          setExerciseDetails({});
+          setExpandedExercise(null);
+        }
+      });
+      return () => { active = false; };
+    }, [workout, timerActive])
+  );
 
   const parseDuration = (str) => {
     if (!str) return 30;
@@ -156,9 +173,9 @@ export default function WorkoutScreen() {
       const saved = await getProfile();
       const used = {
         minutes: parseInt(minutes, 10) || 10,
-        fitnessLevel: fitnessLevel || saved.fitnessLevel || 'Intermediate',
-        equipment: equipment || saved.equipment || 'None',
-        goal: goal || saved.goal || 'Stay Active',
+        fitnessLevel: saved.fitnessLevel || fitnessLevel || 'Intermediate',
+        equipment: saved.equipment || equipment || 'None',
+        goal: saved.goal || goal || 'Stay Active',
       };
       usedRef.current = used;
       const response = await fetch(apiUrl('/api/generate-workout'), {
