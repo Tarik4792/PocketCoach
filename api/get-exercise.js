@@ -1,3 +1,5 @@
+import { requireUser } from './_rateLimit.js';
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,17 +8,9 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Require a valid Supabase session (anonymous users count)
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    const auth = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
-      headers: { apikey: process.env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
-    });
-    if (!auth.ok) return res.status(401).json({ error: 'Unauthorized' });
-  } catch (e) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  // Require a valid Supabase session and enforce a per-user rate limit
+  const user = await requireUser(req, res, 'get-exercise', 60, 60);
+  if (!user) return;
 
   const name = typeof req.body?.name === 'string' ? req.body.name.slice(0, 80) : '';
   if (!name.trim()) return res.status(200).json({ found: false });

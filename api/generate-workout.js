@@ -1,3 +1,5 @@
+import { requireUser } from './_rateLimit.js';
+
 const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
 const GOALS = ['Lose Weight', 'Build Strength', 'Stay Active'];
 
@@ -22,17 +24,9 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Require a valid Supabase session (anonymous users count)
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    const auth = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
-      headers: { apikey: process.env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
-    });
-    if (!auth.ok) return res.status(401).json({ error: 'Unauthorized' });
-  } catch (e) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  // Require a valid Supabase session and enforce a per-user rate limit
+  const user = await requireUser(req, res, 'generate-workout', 10, 60);
+  if (!user) return;
 
   const body = req.body || {};
 
@@ -62,6 +56,7 @@ Rules:
 - Only use safe, well-known exercises. No maximal-effort lifts and nothing that needs a spotter.
 - Use simple, standard, searchable exercise names. Do not invent creative or compound names.
 - Follow the equipment rule strictly.
+- Total time (all exercise durations plus rest periods) must add up to about ${minutes} minutes. Count roughly 1 minute per timed exercise and 1 to 1.5 minutes per rep-based exercise.
 
 Respond with ONLY a JSON object in this exact format, no markdown:
 {
