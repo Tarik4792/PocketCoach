@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getAccessToken } from '../../lib/auth';
 import { apiUrl } from '../../lib/api';
+import { getProfile } from '../../lib/userProfile';
 
 export default function WorkoutScreen() {
   const { minutes, fitnessLevel, equipment, goal } = useLocalSearchParams();
@@ -25,6 +26,7 @@ export default function WorkoutScreen() {
   const [repCount, setRepCount] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const intervalRef = useRef(null);
+  const usedRef = useRef({});
 
   const parseDuration = (str) => {
     if (!str) return 30;
@@ -106,12 +108,12 @@ export default function WorkoutScreen() {
       const { error: insertError } = await supabase.from('workouts').insert({
         title: workout.title,
         theme: workout.theme || null,
-        duration_minutes: parseInt(minutes, 10) || 10,
+        duration_minutes: usedRef.current.minutes || parseInt(minutes, 10) || 10,
         exercises: workout.exercises,
         tip: workout.tip || null,
-        fitness_level: fitnessLevel || 'Intermediate',
-        equipment: equipment || 'None',
-        goal: goal || 'Stay Active',
+        fitness_level: usedRef.current.fitnessLevel || fitnessLevel || 'Intermediate',
+        equipment: usedRef.current.equipment || equipment || 'None',
+        goal: usedRef.current.goal || goal || 'Stay Active',
       });
       if (insertError) console.log('Failed to save workout:', insertError.message);
     } catch (e) {
@@ -150,16 +152,19 @@ export default function WorkoutScreen() {
     try {
       const previousWorkout = workout ? workout.exercises.map((e) => e.name).join(', ') : null;
       const token = await getAccessToken();
+      // Use the settings passed from Home, or fall back to the saved profile
+      const saved = await getProfile();
+      const used = {
+        minutes: parseInt(minutes, 10) || 10,
+        fitnessLevel: fitnessLevel || saved.fitnessLevel || 'Intermediate',
+        equipment: equipment || saved.equipment || 'None',
+        goal: goal || saved.goal || 'Stay Active',
+      };
+      usedRef.current = used;
       const response = await fetch(apiUrl('/api/generate-workout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          minutes: minutes || 10,
-          fitnessLevel: fitnessLevel || 'Intermediate',
-          equipment: equipment || 'None',
-          goal: goal || 'Stay Active',
-          previousWorkout,
-        }),
+        body: JSON.stringify({ ...used, previousWorkout }),
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Request failed');
