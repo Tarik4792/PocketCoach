@@ -34,7 +34,7 @@ export default function ProfileScreen() {
     try {
       await deleteMyData();
       await AsyncStorage.clear();
-      router.replace('/');
+      router.replace('/onboarding');
     } catch (e) {
       console.log('Delete failed:', e);
       const msg = 'Something went wrong. Please try again.';
