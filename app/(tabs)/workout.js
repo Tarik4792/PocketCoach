@@ -6,6 +6,8 @@ import { getAccessToken } from '../../lib/auth';
 import { apiUrl } from '../../lib/api';
 import { getProfile } from '../../lib/userProfile';
 
+const FOCUS_AREAS = ['Full Body', 'Lower Back', 'Upper Back', 'Core', 'Legs', 'Glutes', 'Shoulders', 'Chest', 'Arms'];
+
 export default function WorkoutScreen() {
   const { minutes, fitnessLevel, equipment, goal } = useLocalSearchParams();
   const router = useRouter();
@@ -16,6 +18,7 @@ export default function WorkoutScreen() {
   const [exerciseDetails, setExerciseDetails] = useState({});
   const [loadingDetail, setLoadingDetail] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [focus, setFocus] = useState('Full Body');
 
   // Timer state
   const [timerActive, setTimerActive] = useState(false);
@@ -176,6 +179,7 @@ export default function WorkoutScreen() {
         fitnessLevel: saved.fitnessLevel || fitnessLevel || 'Intermediate',
         equipment: saved.equipment || equipment || 'None',
         goal: saved.goal || goal || 'Stay Active',
+        focus,
       };
       usedRef.current = used;
       const response = await fetch(apiUrl('/api/generate-workout'), {
@@ -304,6 +308,24 @@ export default function WorkoutScreen() {
       {workout?.theme && <Text style={styles.theme}>🎯 {workout.theme}</Text>}
       <Text style={styles.sub}>Tap any exercise to see how it is done</Text>
 
+      <Text style={styles.focusLabel}>Focus area</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.focusRow}>
+        {FOCUS_AREAS.map((a) => (
+          <TouchableOpacity
+            key={a}
+            style={[styles.chip, focus === a && styles.chipActive]}
+            onPress={() => setFocus(a)}
+          >
+            <Text style={[styles.chipText, focus === a && styles.chipTextActive]}>{a}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      <Text style={styles.painNote}>
+        {focus === 'Lower Back'
+          ? 'Go gently. Stop right away if you feel pain, and check with your doctor first if your back is sore or injured.'
+          : 'Stop if you feel pain.'}
+      </Text>
+
       {!workout && !loading && (
         <TouchableOpacity style={styles.generateBtn} onPress={generateWorkout}>
           <Text style={styles.generateText}>⚡ Generate My Workout</Text>
@@ -402,6 +424,13 @@ export default function WorkoutScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
+  focusLabel: { color: '#fff', fontSize: 14, fontWeight: '600', marginBottom: 10 },
+  focusRow: { flexGrow: 0, marginBottom: 10 },
+  chip: { backgroundColor: '#1a1a1a', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 9, borderWidth: 1, borderColor: '#333', marginRight: 8 },
+  chipActive: { backgroundColor: '#00C896', borderColor: '#00C896' },
+  chipText: { color: '#aaa', fontSize: 14, fontWeight: '600' },
+  chipTextActive: { color: '#000' },
+  painNote: { color: '#888', fontSize: 12, lineHeight: 18, marginBottom: 24 },
   content: { padding: 24, paddingTop: 40 },
   heading: { fontSize: 26, fontWeight: '700', color: '#fff', marginBottom: 4 },
   theme: { fontSize: 13, color: '#00C896', marginBottom: 4, textTransform: 'capitalize' },
