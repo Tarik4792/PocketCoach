@@ -5,7 +5,7 @@ const GOALS = ['Lose Weight', 'Build Strength', 'Stay Active'];
 
 const FOCUS_RULES = {
   'Full Body': '',
-  'Lower Back': 'Strengthen the lower back and the muscles that support it (glutes, core, hamstrings). Use gentle, low-impact, controlled moves such as Bird Dog, Glute Bridge, Dead Bug, Superman, Hip Hinge and Back Extension. Use a slow tempo. No heavy loading, no heavy deadlifts, no jumping, no twisting under load.',
+  'Lower Back': 'Strengthen the lower back and the muscles that support it (glutes, core, hamstrings). Use gentle, low-impact, controlled moves such as Bird Dog, Glute Bridge, Dead Bug, Superman, Side Plank and Cat-Cow. Use a slow tempo. Use bodyweight floor moves even when equipment is available, and do not load the spine. No good mornings, no deadlifts or Romanian deadlifts of any kind, no loaded forward bends, no weighted hip hinges, no sit-ups, no straight leg raises, no jumping, no twisting under load.',
   'Upper Back': 'Target the upper and mid back, rear shoulders and posture muscles with moves such as rows, reverse flys, pull aparts, Superman and scapular squeezes.',
   'Core': 'Target the abs, obliques and deep core with moves such as planks, dead bugs, leg raises, bicycle crunches and bird dogs. Keep the lower back protected.',
   'Legs': 'Target quads, hamstrings, glutes and calves with moves such as squats, lunges, step-ups, calf raises and hip hinges.',
@@ -73,6 +73,7 @@ Rules:
 - Only use safe, well-known exercises. No maximal-effort lifts and nothing that needs a spotter.
 - Use simple, standard, searchable exercise names. Do not invent creative or compound names.
 - Follow the equipment rule strictly.
+- Never include good mornings.
 - If the focus area is Lower Back, keep every move gentle and controlled, and make the tip a reminder to stop if the user feels pain.
 - Total time (all exercise durations plus rest periods) must add up to about ${minutes} minutes. Count roughly 1 minute per timed exercise and 1 to 1.5 minutes per rep-based exercise.
 
