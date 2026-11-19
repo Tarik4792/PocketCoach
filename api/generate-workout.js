@@ -51,6 +51,10 @@ export default async function handler(req, res) {
   const focusLine = FOCUS_RULES[focus]
     ? `Focus area: ${focus}. ${FOCUS_RULES[focus]} At least 70 percent of the exercises must target this area. The equipment rule still applies, but bodyweight floor moves are allowed when the equipment cannot target this area safely.`
     : '';
+  const setsChoice = [1, 2, 3, 4].includes(parseInt(body.sets, 10)) ? parseInt(body.sets, 10) : null;
+  const setsRule = setsChoice
+    ? `Every exercise must have exactly ${setsChoice} set${setsChoice > 1 ? 's' : ''}. Pick the number of exercises so the total time still fits.`
+    : `Choose the number of sets per exercise to fit the session length: 1 set for 5 minutes or less, 2 sets for 6 to 15 minutes, 3 sets for longer sessions (Beginners: at most 2 sets). Then pick the number of exercises so the total time fits.`;
   const previousWorkout = typeof body.previousWorkout === 'string'
     ? body.previousWorkout.replace(/[\r\n]+/g, ' ').slice(0, 300)
     : '';
@@ -66,6 +70,7 @@ Fitness level: ${fitnessLevel}
 Goal: ${goal}
 Equipment rule: ${EQUIPMENT_RULES[equipment]}
 ${focusLine}
+${setsRule}
 ${varietyInstruction}
 
 Rules:
@@ -75,15 +80,15 @@ Rules:
 - Follow the equipment rule strictly.
 - Never include good mornings.
 - If the focus area is Lower Back, keep every move gentle and controlled, and make the tip a reminder to stop if the user feels pain.
-- Total time (all exercise durations plus rest periods) must add up to about ${minutes} minutes. Count roughly 1 minute per timed exercise and 1 to 1.5 minutes per rep-based exercise.
+- Every exercise has a "sets" number, and the rest period applies after every set. Total time = the sum over all exercises of sets x (work time + rest). It must add up to about ${minutes} minutes. Count about 45 seconds of work per rep-based set.
 
 Respond with ONLY a JSON object in this exact format, no markdown:
 {
   "title": "creative workout title that reflects the theme",
   "theme": "${randomTheme}",
   "exercises": [
-    { "name": "Exercise Name", "duration": "45 sec", "rest": "15 sec", "reps": null },
-    { "name": "Exercise Name", "duration": null, "rest": "30 sec", "reps": "10 reps" }
+    { "name": "Exercise Name", "sets": 3, "duration": "30 sec", "rest": "15 sec", "reps": null },
+    { "name": "Exercise Name", "sets": 3, "duration": null, "rest": "30 sec", "reps": "10 reps" }
   ],
   "tip": "one motivational tip for busy professionals"
 }`;
@@ -116,6 +121,12 @@ Respond with ONLY a JSON object in this exact format, no markdown:
 
     if (!Array.isArray(workout.exercises) || workout.exercises.length === 0) {
       throw new Error('Invalid workout shape');
+    }
+
+    // Make sure every exercise has a sensible number of sets
+    for (const ex of workout.exercises) {
+      const n = parseInt(ex.sets, 10);
+      ex.sets = setsChoice || Math.min(Math.max(n || 1, 1), 5);
     }
 
     res.status(200).json(workout);

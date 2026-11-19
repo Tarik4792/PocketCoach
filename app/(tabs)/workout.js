@@ -6,6 +6,7 @@ import { getAccessToken } from '../../lib/auth';
 import { apiUrl } from '../../lib/api';
 import { getProfile } from '../../lib/userProfile';
 
+const SET_OPTIONS = ['Auto', '1', '2', '3', '4'];
 const FOCUS_AREAS = ['Full Body', 'Lower Back', 'Upper Back', 'Core', 'Legs', 'Glutes', 'Shoulders', 'Chest', 'Arms'];
 
 export default function WorkoutScreen() {
@@ -19,10 +20,12 @@ export default function WorkoutScreen() {
   const [loadingDetail, setLoadingDetail] = useState(null);
   const [saving, setSaving] = useState(false);
   const [focus, setFocus] = useState('Full Body');
+  const [setsChoice, setSetsChoice] = useState('Auto');
 
   // Timer state
   const [timerActive, setTimerActive] = useState(false);
   const [currentExIndex, setCurrentExIndex] = useState(0);
+  const [currentSet, setCurrentSet] = useState(1);
   const [isResting, setIsResting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [workoutComplete, setWorkoutComplete] = useState(false);
@@ -52,6 +55,17 @@ export default function WorkoutScreen() {
     if (!str) return 30;
     const match = String(str).match(/(\d+)/);
     return match ? parseInt(match[1], 10) : 30;
+  };
+
+  // Sets for an exercise (older saved workouts have none, so default to 1)
+  const setsOf = (ex) => Math.max(1, parseInt(ex?.sets, 10) || 1);
+  const setsLabel = (ex) => (setsOf(ex) > 1 ? setsOf(ex) + ' × ' : '');
+  const estimateMinutes = (w) => {
+    const secs = w.exercises.reduce((sum, ex) => {
+      const work = ex.duration ? parseDuration(ex.duration) : 45;
+      return sum + setsOf(ex) * (work + parseDuration(ex.rest));
+    }, 0);
+    return Math.max(1, Math.round(secs / 60));
   };
 
   // A rep-based exercise has no duration: the user taps Done instead of a countdown.
@@ -92,29 +106,36 @@ export default function WorkoutScreen() {
     return () => clearInterval(intervalRef.current);
   }, [timerActive, timeLeft, repPhase]);
 
-  const startExercise = (index) => {
+  const startExercise = (index, set = 1) => {
     const ex = workout.exercises[index];
     setCurrentExIndex(index);
+    setCurrentSet(set);
     setIsResting(false);
     setRepCount(0);
     setElapsed(0);
     setTimeLeft(isRepExercise(ex) ? 0 : parseDuration(ex.duration));
   };
 
+  const finishWorkout = () => {
+    setTimerActive(false);
+    setWorkoutComplete(true);
+    saveWorkout();
+  };
+
+  // After a set: rest. After the rest: next set, next exercise, or finish.
   const handleTimerEnd = () => {
     clearInterval(intervalRef.current);
     if (!workout) return;
+    const ex = workout.exercises[currentExIndex];
+    const lastExercise = currentExIndex + 1 >= workout.exercises.length;
+    const lastSet = currentSet >= setsOf(ex);
     if (isResting) {
-      const nextIndex = currentExIndex + 1;
-      if (nextIndex >= workout.exercises.length) {
-        setTimerActive(false);
-        setWorkoutComplete(true);
-        saveWorkout();
-      } else {
-        startExercise(nextIndex);
-      }
+      if (!lastSet) startExercise(currentExIndex, currentSet + 1);
+      else if (lastExercise) finishWorkout();
+      else startExercise(currentExIndex + 1, 1);
+    } else if (lastSet && lastExercise) {
+      finishWorkout();
     } else {
-      const ex = workout.exercises[currentExIndex];
       setIsResting(true);
       setTimeLeft(parseDuration(ex.rest));
     }
@@ -160,6 +181,7 @@ export default function WorkoutScreen() {
     setTimerActive(false);
     setIsResting(false);
     setCurrentExIndex(0);
+    setCurrentSet(1);
     setWorkoutComplete(false);
   };
 
@@ -179,6 +201,7 @@ export default function WorkoutScreen() {
         fitnessLevel: saved.fitnessLevel || fitnessLevel || 'Intermediate',
         equipment: saved.equipment || equipment || 'None',
         goal: saved.goal || goal || 'Stay Active',
+        sets: setsChoice,
         focus,
       };
       usedRef.current = used;
@@ -248,7 +271,11 @@ export default function WorkoutScreen() {
   // Timer screen
   if (timerActive && workout) {
     const currentEx = workout.exercises[currentExIndex];
-    const progress = (currentExIndex / workout.exercises.length) * 100;
+    const totalSets = workout.exercises.reduce((n, e) => n + setsOf(e), 0);
+    const doneSets =
+      workout.exercises.slice(0, currentExIndex).reduce((n, e) => n + setsOf(e), 0) +
+      (currentSet - 1) + (isResting ? 1 : 0);
+    const progress = (doneSets / totalSets) * 100;
 
     return (
       <View style={{ flex: 1, backgroundColor: '#0f0f0f' }}>
@@ -266,7 +293,11 @@ export default function WorkoutScreen() {
         <Text style={styles.progressText}>{currentExIndex + 1} / {workout.exercises.length}</Text>
         <Text style={styles.timerPhase}>{isResting ? '😮‍💨 Rest' : '💪 Exercise'}</Text>
         <Text style={styles.timerExName}>{isResting ? 'Rest' : currentEx.name}</Text>
-        {!isResting && <Text style={styles.timerExMeta}>{currentEx.duration || currentEx.reps}</Text>}
+        {!isResting && (
+          <Text style={styles.timerExMeta}>
+            {setsOf(currentEx) > 1 ? `Set ${currentSet} of ${setsOf(currentEx)} · ` : ''}{currentEx.duration || currentEx.reps}
+          </Text>
+        )}
 
         {repPhase ? (
           <View style={{ alignItems: 'center' }}>
@@ -288,6 +319,15 @@ export default function WorkoutScreen() {
           </View>
         )}
 
+        {isResting && (
+          <Text style={styles.nextUp}>
+            {currentSet < setsOf(currentEx)
+              ? `Next: set ${currentSet + 1} of ${setsOf(currentEx)}`
+              : currentExIndex + 1 < workout.exercises.length
+                ? `Next: ${workout.exercises[currentExIndex + 1].name}`
+                : ''}
+          </Text>
+        )}
         {!isResting && currentExIndex + 1 < workout.exercises.length && (
           <Text style={styles.nextUp}>Next: {workout.exercises[currentExIndex + 1].name}</Text>
         )}
@@ -326,6 +366,20 @@ export default function WorkoutScreen() {
           : 'Stop if you feel pain.'}
       </Text>
 
+      <Text style={styles.focusLabel}>Sets per exercise</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.focusRow}>
+        {SET_OPTIONS.map((o) => (
+          <TouchableOpacity
+            key={o}
+            style={[styles.chip, setsChoice === o && styles.chipActive]}
+            onPress={() => setSetsChoice(o)}
+          >
+            <Text style={[styles.chipText, setsChoice === o && styles.chipTextActive]}>{o}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      <Text style={styles.painNote}>Auto picks sets to fit your time. Your choice applies the next time you generate.</Text>
+
       {!workout && !loading && (
         <TouchableOpacity style={styles.generateBtn} onPress={generateWorkout}>
           <Text style={styles.generateText}>⚡ Generate My Workout</Text>
@@ -351,6 +405,7 @@ export default function WorkoutScreen() {
       {workout && !loading && (
         <View>
           <Text style={styles.workoutTitle}>{workout.title}</Text>
+          <Text style={styles.estimate}>⏱ About {estimateMinutes(workout)} min · {workout.exercises.length} exercises</Text>
           <TouchableOpacity style={styles.startTimerBtn} onPress={startTimer}>
             <Text style={styles.startTimerText}>▶ Start Workout Timer</Text>
           </TouchableOpacity>
@@ -364,7 +419,7 @@ export default function WorkoutScreen() {
                 <Text style={styles.exNum}>{i + 1}</Text>
                 <View style={styles.exInfo}>
                   <Text style={styles.exName}>{ex.name}</Text>
-                  <Text style={styles.exMeta}>{ex.duration || ex.reps} · Rest {ex.rest}</Text>
+                  <Text style={styles.exMeta}>{setsLabel(ex)}{ex.duration || ex.reps} · Rest {ex.rest}</Text>
                 </View>
                 <Text style={styles.arrow}>{expandedExercise === ex.name ? '▲' : '▼'}</Text>
               </TouchableOpacity>
@@ -377,7 +432,7 @@ export default function WorkoutScreen() {
                     <View>
                       {exerciseDetails[ex.name]?.targetMuscle && (
                         <View style={styles.muscleRow}>
-                          <View style={styles.muscleTag}><Text style={styles.muscleTagText}>🎯{exerciseDetails[ex.name].targetMuscle}</Text></View>
+                          <View style={styles.muscleTag}><Text style={styles.muscleTagText}>🎯 {exerciseDetails[ex.name].targetMuscle}</Text></View>
                           {exerciseDetails[ex.name]?.bodyPart && <View style={styles.muscleTag}><Text style={styles.muscleTagText}>💪 {exerciseDetails[ex.name].bodyPart}</Text></View>}
                           {exerciseDetails[ex.name]?.difficulty && <View style={styles.muscleTag}><Text style={styles.muscleTagText}>⚡ {exerciseDetails[ex.name].difficulty}</Text></View>}
                         </View>
@@ -443,6 +498,7 @@ const styles = StyleSheet.create({
   errorText: { color: '#ff6b6b', fontSize: 15, textAlign: 'center' },
   retryBtn: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#333' },
   retryText: { color: '#aaa', fontWeight: '600' },
+  estimate: { color: '#888', fontSize: 13, marginTop: -8, marginBottom: 16 },
   workoutTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 16 },
   startTimerBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 24 },
   startTimerText: { color: '#000', fontWeight: '700', fontSize: 16 },
@@ -469,8 +525,8 @@ const styles = StyleSheet.create({
   regenerateBtn: { backgroundColor: '#00C896', borderRadius: 16, padding: 18, alignItems: 'center' },
   regenerateText: { color: '#000', fontWeight: '700', fontSize: 16 },
   timerScreen: { flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center', padding: 24, paddingTop: 110 },
-  activeScreen: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 100, paddingBottom: 60 },
-  stopBtn: { position: 'absolute', top: 50, left: 24, zIndex: 10 },
+  activeScreen: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 60 },
+  stopBtn: { alignSelf: 'flex-start', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 4 },
   stopBtnText: { color: '#666', fontSize: 16 },
   progressBarContainer: { width: '100%', height: 4, backgroundColor: '#222', borderRadius: 2, marginBottom: 8 },
   progressBar: { height: 4, backgroundColor: '#00C896', borderRadius: 2 },
