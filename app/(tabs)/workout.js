@@ -91,7 +91,7 @@ export default function WorkoutScreen() {
     const target = repTarget(workout.exercises[currentExIndex]);
     const next = repCount + 1;
     setRepCount(next);
-    if (next >= target) skipCurrent();
+    if (next >= target) handleTimerEnd();
   };
 
   useEffect(() => {
@@ -329,7 +329,7 @@ export default function WorkoutScreen() {
           </Text>
         )}
         {!isResting && currentExIndex + 1 < workout.exercises.length && (
-          <Text style={styles.nextUp}>Next: {workout.exercises[currentExIndex + 1].name}</Text>
+          <Text style={styles.nextUp}>Next: {currentSet < setsOf(currentEx) ? `set ${currentSet + 1} of ${setsOf(currentEx)}` : workout.exercises[currentExIndex + 1].name}</Text>
         )}
         {!repPhase && (
           <TouchableOpacity style={styles.skipBtn} onPress={skipCurrent}>
