@@ -137,6 +137,21 @@ Respond with ONLY a JSON object in this exact format, no markdown:
       ex.sets = setsChoice || Math.min(Math.max(n || 1, 1), 5);
     }
 
+    // Trim to the requested time: drop trailing exercises while the plan runs more than 10% over
+    const toSecs = (t) => {
+      const m = String(t || '').match(/(\d+)\s*(min|sec|s)?/i);
+      if (!m) return 0;
+      const n = parseInt(m[1], 10);
+      return /^min/i.test(m[2] || '') ? n * 60 : n;
+    };
+    const planSecs = (list) => list.reduce((sum, e) => {
+      const work = e.duration ? toSecs(e.duration) : 45;
+      return sum + e.sets * (work + toSecs(e.rest));
+    }, 0);
+    while (workout.exercises.length > 3 && planSecs(workout.exercises) > minutes * 60 * 1.1) {
+      workout.exercises.pop();
+    }
+
     res.status(200).json(workout);
   } catch (error) {
     console.error('generate-workout error:', error.message);
