@@ -292,7 +292,7 @@ export default function WorkoutScreen() {
         </View>
         <Text style={styles.progressText}>{currentExIndex + 1} / {workout.exercises.length}</Text>
         <Text style={styles.timerPhase}>{isResting ? '😮‍💨 Rest' : '💪 Exercise'}</Text>
-        <Text style={styles.timerExName}>{isResting ? 'Rest' : currentEx.name}</Text>
+        <Text style={styles.timerExName}>{isResting ? (currentSet < setsOf(currentEx) ? currentEx.name : (workout.exercises[currentExIndex + 1]?.name || 'Rest')) : currentEx.name}</Text>
         {!isResting && (
           <Text style={styles.timerExMeta}>
             {setsOf(currentEx) > 1 ? `Set ${currentSet} of ${setsOf(currentEx)} · ` : ''}{currentEx.duration || currentEx.reps}
