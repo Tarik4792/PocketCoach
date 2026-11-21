@@ -1,5 +1,6 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { ensureSession } from '../../lib/auth';
 import { calculateStreak, getStreakMessage } from '../../lib/streaks';
@@ -27,9 +28,11 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchHistory();
+    }, [])
+  );
 
   const fetchHistory = async () => {
     try {
