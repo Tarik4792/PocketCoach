@@ -18,7 +18,7 @@ const FOCUS_RULES = {
 const EQUIPMENT_RULES = {
   'None': 'Bodyweight only. No equipment and no furniture (no chairs, benches or bars).',
   'Dumbbells': 'Dumbbells only. Most exercises must use dumbbells and be named with a "Dumbbell" prefix, such as "Dumbbell Goblet Squat", "Dumbbell Row", "Dumbbell Shoulder Press", "Dumbbell Romanian Deadlift", "Dumbbell Lunge", "Dumbbell Curl". One or two bodyweight moves are fine for core.',
-  'Resistance Bands': 'Resistance bands only. Most exercises must use a band and be named with a "Band" prefix, such as "Band Row", "Band Squat", "Band Pull Apart", "Band Shoulder Press".',
+  'Resistance Bands': 'Resistance bands only. Most exercises must use a band and be named with a "Band" prefix. Use only real band exercises people actually do, such as Band Row, Band Pull Apart, Band Face Pull, Band Lat Pulldown, Band Chest Press, Band Shoulder Press, Band Bicep Curl, Band Tricep Extension, Band Squat, Band Lunge, Band Glute Bridge, Band Lateral Walk, Band Monster Walk, Band Clamshell and Band Kickback. Never invent a band version of a gym machine exercise (no Band Leg Press, Band Leg Extension, Band Leg Curl or Band Hack Squat). A few bodyweight moves with standard names, like Plank or Dead Bug, are fine.',
   'Full Gym': 'Full gym available. Use barbells, dumbbells, cables and machines, with standard names such as "Barbell Squat", "Cable Row", "Lat Pulldown", "Leg Press".',
 };
 
