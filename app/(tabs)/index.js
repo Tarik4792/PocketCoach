@@ -9,9 +9,9 @@ const TIME_OPTIONS = [5, 10, 15, 20, 30];
 
 const getGreeting = () => {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning 👋';
-  if (hour < 17) return 'Good afternoon 👋';
-  return 'Good evening 👋';
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
 };
 
 export default function HomeScreen() {
@@ -58,7 +58,7 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>{getGreeting()}{profile.name ? `, ${profile.name}` : ''}</Text>
+      <Text style={styles.greeting}>{getGreeting()}{profile.name ? `, ${profile.name.trim().split(' ')[0]}` : ''} 👋</Text>
       <Text style={styles.tagline}>How much time do you have?</Text>
 
       {streak > 0 && (
