@@ -149,7 +149,7 @@ export default function WorkoutScreen() {
       const { error: insertError } = await supabase.from('workouts').insert({
         title: workout.title,
         theme: workout.theme || null,
-        duration_minutes: usedRef.current.minutes || parseInt(minutes, 10) || 10,
+        duration_minutes: workout ? estimateMinutes(workout) : (usedRef.current.minutes || parseInt(minutes, 10) || 10),
         exercises: workout.exercises,
         tip: workout.tip || null,
         fitness_level: usedRef.current.fitnessLevel || fitnessLevel || 'Intermediate',
