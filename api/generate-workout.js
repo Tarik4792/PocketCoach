@@ -123,7 +123,15 @@ Respond with ONLY a JSON object in this exact format, no markdown:
       throw new Error('Invalid workout shape');
     }
 
-    // Make sure every exercise has a sensible number of sets
+    // Safety net: never let risky moves through for Lower Back, even if the AI ignores the rules
+    if (focus === 'Lower Back') {
+      const lowerBackBanned = /good ?morning|deadlift|romanian|\brdl\b|stiff.?leg|sit.?up|straight leg raise|jump|russian twist/i;
+      const safeList = workout.exercises.filter((e) => !lowerBackBanned.test(String(e.name)));
+      if (safeList.length >= 2) workout.exercises = safeList;
+    }
+
+    
+// Make sure every exercise has a sensible number of sets
     for (const ex of workout.exercises) {
       const n = parseInt(ex.sets, 10);
       ex.sets = setsChoice || Math.min(Math.max(n || 1, 1), 5);
